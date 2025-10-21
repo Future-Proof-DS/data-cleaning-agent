@@ -13,10 +13,6 @@ A lightweight AI-powered data cleaning agent using LangChain and LangGraph.
 ## Installation
 
 ```bash
-# Clone the repository
-git clone <your-repo-url>
-cd data-cleaning-agent
-
 # Install dependencies with Poetry
 poetry install
 
