@@ -12,16 +12,21 @@ The agent follows a simple workflow:
 
 This approach combines the flexibility of LLMs with the reliability of pandas operations.
 
-## Installation
+## Setup
 
-```bash
-# Install dependencies with Poetry
-poetry install
+1. **Install Poetry** (if not already installed):
+   ```bash
+   curl -sSL https://install.python-poetry.org | python3 -
+   ```
 
-# Set up environment variables
-cp .env.example .env
-# Add your OPENAI_API_KEY to .env
-```
+2. **Install dependencies**:
+   ```bash
+   poetry install
+   ```
+
+3. **Set up your OpenAI API key**:
+   - Copy `.env.example` to `.env`
+   - Add your OpenAI API key to `.env`
 
 ## Usage
 
@@ -86,11 +91,6 @@ data-cleaning-agent/
 ├── pyproject.toml              # Dependencies
 └── README.md
 ```
-
-## Requirements
-
-- Python ^3.9
-- OpenAI API key
 
 ## License
 
