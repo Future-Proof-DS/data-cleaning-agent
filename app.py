@@ -21,7 +21,7 @@ if uploaded_file:
     if st.button("Clean Data"):
         with st.spinner("Cleaning..."):
             llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-            agent = LightweightDataCleaningAgent(model=llm)
+            agent = LightweightDataCleaningAgent(model=llm, log=True)
             agent.invoke_agent(data_raw=df_raw)
             df_cleaned = agent.get_data_cleaned()
             
