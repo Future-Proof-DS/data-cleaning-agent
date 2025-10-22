@@ -19,7 +19,7 @@ class PythonOutputParser(BaseOutputParser):
         return text
 
 
-def get_dataframe_summary(df: pd.DataFrame, n_sample: int = 30) -> str:
+def get_dataframe_summary(df: pd.DataFrame) -> str:
     """
     Generate a simple summary of a DataFrame for the LLM.
     
@@ -27,8 +27,6 @@ def get_dataframe_summary(df: pd.DataFrame, n_sample: int = 30) -> str:
     ----------
     df : pd.DataFrame
         The DataFrame to summarize.
-    n_sample : int, optional
-        Number of rows to include in the sample. Defaults to 30.
     
     Returns
     -------
@@ -43,16 +41,11 @@ def get_dataframe_summary(df: pd.DataFrame, n_sample: int = 30) -> str:
     summary = f"""
         Dataset Summary:
         ----------------
-        Shape: {df.shape[0]} rows x {df.shape[1]} columns
-
         Column Data Types:
         {column_types}
 
         Missing Value Percentage:
-        {missing_summary}
-
-        Sample Data (first {n_sample} rows):
-        {df.head(n_sample).to_string()}"""
+        {missing_summary}"""
 
     return summary.strip()
 

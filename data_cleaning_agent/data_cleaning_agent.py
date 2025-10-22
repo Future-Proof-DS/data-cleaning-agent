@@ -38,8 +38,6 @@ class LightweightDataCleaningAgent:
     ----------
     model : LLM
         Language model for generating cleaning code (e.g., ChatOpenAI).
-    n_samples : int, default=30
-        Number of sample rows to include in the dataset summary sent to the LLM.
     log : bool, default=False
         Whether to save generated code to a file.
     log_path : str, optional
@@ -60,7 +58,6 @@ class LightweightDataCleaningAgent:
     def __init__(
         self, 
         model, 
-        n_samples=30, 
         log=False, 
         log_path=None, 
         file_name="data_cleaner.py", 
@@ -68,7 +65,6 @@ class LightweightDataCleaningAgent:
         checkpointer: Checkpointer = None
     ):
         self.model = model
-        self.n_samples = n_samples
         self.log = log
         self.log_path = log_path
         self.file_name = file_name
@@ -77,7 +73,6 @@ class LightweightDataCleaningAgent:
         self.response = None
         self._compiled_graph = make_lightweight_data_cleaning_agent(
             model=model,
-            n_samples=n_samples,
             log=log,
             log_path=log_path,
             file_name=file_name,
@@ -144,7 +139,6 @@ class LightweightDataCleaningAgent:
 
 def make_lightweight_data_cleaning_agent(
     model, 
-    n_samples=30, 
     log=False, 
     log_path=None, 
     file_name="data_cleaner.py",
@@ -161,8 +155,6 @@ def make_lightweight_data_cleaning_agent(
     ----------
     model : LLM
         Language model for generating cleaning code.
-    n_samples : int, default=30
-        Number of sample rows to include in dataset summary.
     log : bool, default=False
         Whether to save generated code to a file.
     log_path : str, optional
@@ -208,7 +200,7 @@ def make_lightweight_data_cleaning_agent(
         data_raw = state.get("data_raw")
         df = pd.DataFrame.from_dict(data_raw)
 
-        dataset_summary = get_dataframe_summary(df, n_sample=n_samples)
+        dataset_summary = get_dataframe_summary(df)
         
         # TODO: Expand this prompt with more detailed cleaning instructions
         data_cleaning_prompt = PromptTemplate(
