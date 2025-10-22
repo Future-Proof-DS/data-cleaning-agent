@@ -80,7 +80,8 @@ def execute_agent_code(state, data_key, code_snippet_key, result_key, error_key,
     agent_code = state.get(code_snippet_key)
     df = pd.DataFrame.from_dict(data)
     
-    # Execute the generated code
+    # Execute the LLM-generated code in isolated namespace
+    # Note: exec() can be risky - only use with trusted LLM-generated code
     local_vars = {}
     global_vars = {}
     exec(agent_code, global_vars, local_vars)

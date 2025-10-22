@@ -22,11 +22,6 @@ AGENT_NAME = "lightweight_data_cleaning_agent"
 LOG_PATH = os.path.join(os.getcwd(), "logs/")
 
 
-# ============================================================================
-# AGENT CLASS
-# ============================================================================
-
-
 class LightweightDataCleaningAgent:
     """
     LLM-powered agent that generates and executes Python code to clean pandas DataFrames.
@@ -71,6 +66,7 @@ class LightweightDataCleaningAgent:
         self.function_name = function_name
         self.checkpointer = checkpointer
         self.response = None
+        # Build the LangGraph workflow with code generation, execution, and error fixing nodes
         self._compiled_graph = make_lightweight_data_cleaning_agent(
             model=model,
             log=log,
@@ -110,7 +106,7 @@ class LightweightDataCleaningAgent:
             "max_retries": max_retries,
             "retry_count": retry_count,
         }, **kwargs)
-        self.response = response
+        self.response = response  # Store full workflow response for getter methods
         return None
     
     def get_data_cleaned(self):
@@ -178,7 +174,7 @@ def make_lightweight_data_cleaning_agent(
         if not os.path.exists(log_path):
             os.makedirs(log_path)    
 
-    # Define GraphState
+    # Define state schema for the workflow graph
     class GraphState(TypedDict):
         user_instructions: str
         data_raw: dict
@@ -306,7 +302,7 @@ def make_lightweight_data_cleaning_agent(
     workflow.add_edge("create_data_cleaner_code", "execute_data_cleaner_code")
     workflow.add_edge("fix_data_cleaner_code", "execute_data_cleaner_code")
     
-    # Add conditional edge for error handling
+    # Conditional routing: retry with fixes if error occurs and retries remain
     def should_retry(state):
         has_error = state.get("data_cleaner_error") is not None
         can_retry = (
