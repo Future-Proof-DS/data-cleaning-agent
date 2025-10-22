@@ -27,69 +27,32 @@ LOG_PATH = os.path.join(os.getcwd(), "logs/")
 
 class LightweightDataCleaningAgent:
     """
-    A lightweight data cleaning agent that performs basic data cleaning operations.
+    LLM-powered agent that generates and executes Python code to clean pandas DataFrames.
     
-    This simplified version focuses on core cleaning tasks:
-    - Removing columns with excessive missing values
-    - Basic imputation for missing values
-    - Removing duplicate rows
+    Uses an LLM to create data cleaning functions based on user instructions. The agent
+    automatically retries with error correction if the generated code fails.
     
-    Can be extended to add more sophisticated cleaning steps.
-
     Parameters
     ----------
-    model : langchain.llms.base.LLM
-        The language model used to generate the data cleaning function.
-    n_samples : int, optional
-        Number of samples used when summarizing the dataset. Defaults to 30.
-    log : bool, optional
-        Whether to log the generated code and errors. Defaults to False.
+    model : LLM
+        Language model for generating cleaning code (e.g., ChatOpenAI).
+    n_samples : int, default=30
+        Number of sample rows to include in the dataset summary sent to the LLM.
+    log : bool, default=False
+        Whether to save generated code to a file.
     log_path : str, optional
-        Directory path for storing log files. Defaults to None.
-    file_name : str, optional
-        Name of the file for saving the generated response. Defaults to "data_cleaner.py".
-    function_name : str, optional
-        Name of the generated data cleaning function. Defaults to "data_cleaner".
-    checkpointer : langgraph.types.Checkpointer, optional
-        Checkpointer to save and load the agent's state. Defaults to None.
-
-    Methods
-    -------
-    update_params(**kwargs)
-        Updates the agent's parameters and rebuilds the compiled state graph.
-    invoke_agent(user_instructions: str, data_raw: pd.DataFrame, max_retries=3, retry_count=0)
-        Cleans the provided dataset based on user instructions.
-    get_data_cleaned()
-        Retrieves the cleaned dataset as a pandas DataFrame.
-    get_data_raw()
-        Retrieves the raw dataset as a pandas DataFrame.
-    get_data_cleaner_function()
-        Retrieves the generated Python function used for cleaning the data.
-    get_response()
-        Returns the response from the agent as a dictionary.
-    show()
-        Displays the agent's mermaid diagram.
-
-    Examples
-    --------
-    ```python
-    import pandas as pd
-    from langchain_openai import ChatOpenAI
-    from lightweight_data_cleaning_agent import LightweightDataCleaningAgent
-
-    llm = ChatOpenAI(model="gpt-4o-mini")
-
-    agent = LightweightDataCleaningAgent(model=llm, log=True)
-
-    df = pd.read_csv("data/churn_data.csv")
-
-    agent.invoke_agent(
-        user_instructions="Remove columns with more than 50% missing values.",
-        data_raw=df
-    )
-
-    cleaned_data = agent.get_data_cleaned()
-    ```
+        Directory for log files. Defaults to './logs/' if log=True and not specified.
+    file_name : str, default="data_cleaner.py"
+        Name of the log file when log=True.
+    function_name : str, default="data_cleaner"
+        Name of the generated cleaning function.
+    checkpointer : Checkpointer, optional
+        LangGraph checkpointer for saving agent state.
+    
+    Attributes
+    ----------
+    response : dict or None
+        Stores the full response after invoke_agent() is called.
     """
     
     def __init__(
@@ -122,24 +85,27 @@ class LightweightDataCleaningAgent:
     
     def invoke_agent(self, data_raw: pd.DataFrame, user_instructions: str=None, max_retries:int=3, retry_count:int=0, **kwargs):
         """
-        Invokes the agent. The response is stored in the response attribute.
-
-        Parameters:
+        Generate and execute data cleaning code on the provided DataFrame.
+        
+        Parameters
         ----------
-            data_raw (pd.DataFrame): 
-                The raw dataset to be cleaned.
-            user_instructions (str): 
-                Instructions for data cleaning agent.
-            max_retries (int): 
-                Maximum retry attempts for cleaning.
-            retry_count (int): 
-                Current retry attempt.
-            **kwargs
-                Additional keyword arguments to pass to invoke().
-
-        Returns:
-        --------
-            None. The response is stored in the response attribute.
+        data_raw : pd.DataFrame
+            Raw dataset to clean.
+        user_instructions : str, optional
+            Custom cleaning instructions. If None, applies default cleaning steps:
+            removing columns with >40% missing values, imputing missing values,
+            and removing duplicates.
+        max_retries : int, default=3
+            Maximum number of retry attempts if generated code fails.
+        retry_count : int, default=0
+            Starting retry count (typically left at 0).
+        **kwargs
+            Additional arguments passed to the underlying graph invoke method.
+        
+        Returns
+        -------
+        None
+            Results are stored in self.response and accessed via getter methods.
         """
         response = self._compiled_graph.invoke({
             "user_instructions": user_instructions,
@@ -184,43 +150,33 @@ def make_lightweight_data_cleaning_agent(
     checkpointer: Checkpointer = None
 ):
     """
-    Creates a lightweight data cleaning agent.
+    Factory function that creates a compiled LangGraph workflow for data cleaning.
     
-    This agent performs basic cleaning steps:
-    - Removing columns with more than 40% missing values
-    - Imputing missing values (mean for numeric, mode for categorical)
-    - Removing duplicate rows
+    Builds a state graph with three nodes: code generation, execution, and error fixing.
+    The workflow automatically retries with corrections if generated code fails.
     
-    Can be extended to add:
-    - Outlier detection and removal
-    - Data type conversions
-    - Custom validation rules
-    - More sophisticated imputation strategies
-
     Parameters
     ----------
-    model : langchain.llms.base.LLM
-        The language model to use to generate code.
-    n_samples : int, optional
-        The number of samples to use when summarizing the dataset. Defaults to 30.
-    log : bool, optional
-        Whether or not to log the code generated. Defaults to False.
+    model : LLM
+        Language model for generating cleaning code.
+    n_samples : int, default=30
+        Number of sample rows to include in dataset summary.
+    log : bool, default=False
+        Whether to save generated code to a file.
     log_path : str, optional
-        The path to the directory where the log files should be stored.
-    file_name : str, optional
-        The name of the file to save the response to. Defaults to "data_cleaner.py".
-    function_name : str, optional
-        The name of the function that will be generated. Defaults to "data_cleaner".
-    checkpointer : langgraph.types.Checkpointer, optional
-        Checkpointer to save and load the agent's state. Defaults to None.
-
+        Directory for log files. Defaults to './logs/' if log=True and not specified.
+    file_name : str, default="data_cleaner.py"
+        Name of the log file when log=True.
+    function_name : str, default="data_cleaner"
+        Name of the generated cleaning function.
+    checkpointer : Checkpointer, optional
+        LangGraph checkpointer for saving workflow state.
+    
     Returns
     -------
-    app : langchain.graphs.CompiledStateGraph
-        The data cleaning agent as a state graph.
+    CompiledStateGraph
+        Compiled LangGraph workflow ready to process cleaning requests.
     """
-    llm = model
-    
     # Setup Log Directory
     if log:
         if log_path is None:
@@ -246,7 +202,7 @@ def make_lightweight_data_cleaning_agent(
         Generate the data cleaning code based on user instructions.
         """
         print(f"--- {AGENT_NAME.upper().replace('_', ' ')} ---")
-        print("    * CREATE DATA CLEANER CODE")
+        print("* CREATE DATA CLEANER CODE")
         
         data_raw = state.get("data_raw")
         df = pd.DataFrame.from_dict(data_raw)
@@ -282,7 +238,7 @@ def make_lightweight_data_cleaning_agent(
             input_variables=["user_instructions", "all_datasets_summary", "function_name"]
         )
 
-        data_cleaning_agent = data_cleaning_prompt | llm | PythonOutputParser()
+        data_cleaning_agent = data_cleaning_prompt | model | PythonOutputParser()
         
         response = data_cleaning_agent.invoke({
             "user_instructions": state.get("user_instructions") or "Follow the basic cleaning steps.",
@@ -337,7 +293,7 @@ def make_lightweight_data_cleaning_agent(
             state=state,
             code_snippet_key="data_cleaner_function",
             error_key="data_cleaner_error",
-            llm=llm,  
+            llm=model,  
             prompt_template=data_cleaner_prompt,
             function_name=state.get("data_cleaner_function_name"),
         )
