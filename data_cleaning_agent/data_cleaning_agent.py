@@ -1,6 +1,7 @@
 # Libraries
 from typing import TypedDict
 import os
+import logging
 
 import pandas as pd
 
@@ -16,6 +17,7 @@ from .utils import (
 )
 
 # Setup
+logger = logging.getLogger(__name__)
 AGENT_NAME = "lightweight_data_cleaning_agent"
 LOG_PATH = os.path.join(os.getcwd(), "logs/")
 
@@ -201,8 +203,7 @@ def make_lightweight_data_cleaning_agent(
         """
         Generate the data cleaning code based on user instructions.
         """
-        print(f"--- {AGENT_NAME.upper().replace('_', ' ')} ---")
-        print("* CREATE DATA CLEANER CODE")
+        logger.info("Creating data cleaner code")
         
         data_raw = state.get("data_raw")
         df = pd.DataFrame.from_dict(data_raw)
@@ -252,7 +253,7 @@ def make_lightweight_data_cleaning_agent(
             file_path = os.path.join(log_path, file_name)
             with open(file_path, 'w') as f:
                 f.write(response)
-            print(f"      Code saved to: {file_path}")
+            logger.info(f"Code saved to: {file_path}")
    
         return {
             "data_cleaner_function": response,

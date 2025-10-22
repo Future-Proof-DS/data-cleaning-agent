@@ -1,8 +1,11 @@
 # Utility functions for lightweight data cleaning agent
 
 import re
+import logging
 import pandas as pd
 from langchain_core.output_parsers import BaseOutputParser
+
+logger = logging.getLogger(__name__)
 
 
 class PythonOutputParser(BaseOutputParser):
@@ -38,19 +41,19 @@ def get_dataframe_summary(df: pd.DataFrame, n_sample: int = 30) -> str:
     column_types = "\n".join([f"{col}: {dtype}" for col, dtype in df.dtypes.items()])
     
     summary = f"""
-Dataset Summary:
-----------------
-Shape: {df.shape[0]} rows x {df.shape[1]} columns
+        Dataset Summary:
+        ----------------
+        Shape: {df.shape[0]} rows x {df.shape[1]} columns
 
-Column Data Types:
-{column_types}
+        Column Data Types:
+        {column_types}
 
-Missing Value Percentage:
-{missing_summary}
+        Missing Value Percentage:
+        {missing_summary}
 
-Sample Data (first {n_sample} rows):
-{df.head(n_sample).to_string()}
-"""
+        Sample Data (first {n_sample} rows):
+        {df.head(n_sample).to_string()}"""
+
     return summary.strip()
 
 
@@ -78,7 +81,7 @@ def execute_agent_code(state, data_key, code_snippet_key, result_key, error_key,
     dict
         Dictionary with result and error keys.
     """
-    print("    * EXECUTING AGENT CODE")
+    logger.info("Executing agent code")
     
     data = state.get(data_key)
     agent_code = state.get(code_snippet_key)
@@ -102,7 +105,7 @@ def execute_agent_code(state, data_key, code_snippet_key, result_key, error_key,
         if isinstance(result, pd.DataFrame):
             result = result.to_dict()
     except Exception as e:
-        print(f"    ERROR: {e}")
+        logger.error(f"Execution failed: {e}")
         agent_error = f"An error occurred during data cleaning: {str(e)}"
     
     return {result_key: result, error_key: agent_error}
@@ -134,8 +137,8 @@ def fix_agent_code(state, code_snippet_key, error_key, llm, prompt_template, fun
     dict
         Dictionary with updated code, cleared error, and incremented retry count.
     """
-    print("    * FIX AGENT CODE")
-    print(f"      retry_count: {state.get(retry_count_key)}")
+    logger.info("Fixing agent code")
+    logger.debug(f"Retry count: {state.get(retry_count_key)}")
     
     code_snippet = state.get(code_snippet_key)
     error_message = state.get(error_key)
