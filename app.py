@@ -17,10 +17,6 @@ if uploaded_file:
     # Load data
     df_raw = pd.read_csv(uploaded_file)
     
-    st.subheader("Original Data")
-    st.write(f"Shape: {df_raw.shape[0]} rows × {df_raw.shape[1]} columns")
-    st.dataframe(df_raw.head())
-    
     # Clean button
     if st.button("Clean Data"):
         with st.spinner("Cleaning..."):
