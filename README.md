@@ -14,48 +14,67 @@ This approach combines the flexibility of LLMs with the reliability of pandas op
 
 ## Setup
 
-### Windows (PowerShell)
+### Prerequisites
 
-1. **Verify Python is installed** (Python 3.9 or higher required):
-   ```powershell
-   python --version
-   ```
-   If not installed, download from [python.org](https://www.python.org/downloads/)
+- **Python 3.9 or higher** (3.9, 3.10, 3.11, 3.12, or 3.13) - **Note**: Python 3.9.7 is not supported due to a Streamlit compatibility issue
+- **Poetry** (dependency manager)
+- **OpenAI API Key** (get one at [platform.openai.com](https://platform.openai.com/api-keys))
 
-2. **Install Poetry**:
+### Installation Steps
+
+1. **Install Poetry** (if not already installed):
+   
+   **Windows (PowerShell)**:
    ```powershell
    (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
    ```
-   After installation, restart your terminal or IDE. If `poetry` command is not found, add `%APPDATA%\Python\Scripts` to your system PATH.
-
-3. **Install dependencies**:
-   ```powershell
-   poetry install
-   ```
-
-4. **Set up your OpenAI API key**:
-   ```powershell
-   copy .env.example .env
-   ```
-   Then edit `.env` and add your OpenAI API key: `OPENAI_API_KEY=sk-your-key-here`
-
-### macOS/Linux
-
-1. **Install Poetry** (if not already installed):
+   
+   **macOS/Linux**:
    ```bash
    curl -sSL https://install.python-poetry.org | python3 -
    ```
+   
+   After installation, restart your terminal. If `poetry` command is not found:
+   - **Windows**: Add `%APPDATA%\Python\Scripts` to your system PATH
+   - **macOS/Linux**: Add `export PATH="$HOME/.local/bin:$PATH"` to your `~/.bashrc` or `~/.zshrc`
 
 2. **Install dependencies**:
    ```bash
    poetry install
    ```
+   
+   This will install all dependencies with the exact versions specified in `poetry.lock`, ensuring consistency across all environments.
 
 3. **Set up your OpenAI API key**:
+   
+   **Windows**:
+   ```powershell
+   copy .env.example .env
+   ```
+   
+   **macOS/Linux**:
    ```bash
    cp .env.example .env
    ```
-   Then edit `.env` and add your OpenAI API key: `OPENAI_API_KEY=sk-your-key-here`
+   
+   Then edit `.env` and add your OpenAI API key:
+   ```
+   OPENAI_API_KEY=sk-your-key-here
+   ```
+
+### Multiple Python Versions?
+
+If you have multiple Python versions installed and want to use a specific one:
+
+```bash
+# Tell Poetry which Python to use
+poetry env use python3.11  # or python3.9, python3.10, python3.12, etc.
+
+# Then install dependencies
+poetry install
+```
+
+Poetry will create a virtual environment with your chosen Python version.
 
 ## Usage
 
@@ -117,6 +136,9 @@ data-cleaning-agent/
 │   ├── data_cleaning_agent.py  # Main agent class
 │   └── utils.py                # Utility functions
 ├── app.py                      # Streamlit interface
-├── pyproject.toml              # Dependencies
+├── pyproject.toml              # Dependencies configuration
+├── poetry.lock                 # Locked dependency versions
 └── README.md
 ```
+
+**Important**: The `poetry.lock` file is committed to ensure all users get identical, tested dependency versions.
