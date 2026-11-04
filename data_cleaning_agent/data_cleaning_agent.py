@@ -24,9 +24,16 @@ LOG_PATH = os.path.join(os.getcwd(), "logs/")
 # The cleaning steps the agent knows. This is the only place they are listed:
 # the default instructions and the Streamlit toggles are both built from it.
 CLEANING_STEPS = {
-    "standardize_types": "Standardize data types: convert numbers stored as text to numeric (strip currency symbols and thousands separators) and dates to datetime, leaving values that cannot be converted as missing",
+    "standardize_types": (
+        "Standardize data types: convert numbers stored as text to numeric (strip currency "
+        "symbols and thousands separators) and dates to datetime, leaving values that cannot "
+        "be converted as missing"
+    ),
     "remove_sparse_columns": "Remove columns with more than 40% missing values",
-    "remove_outliers": "Remove rows with outliers in numeric columns, using the IQR method (outside 1.5 times the IQR), and keep rows where the value is missing",
+    "remove_outliers": (
+        "Remove rows with outliers in numeric columns, using the IQR method (outside 1.5 times "
+        "the IQR), and keep rows where the value is missing"
+    ),
     "impute_missing": "Impute missing values (mean for numeric, mode for categorical)",
     "remove_duplicates": "Remove duplicate rows",
 }
@@ -35,14 +42,14 @@ CLEANING_STEPS = {
 def build_cleaning_instructions(steps=None, custom_instructions=None):
     """
     Build the numbered instructions the agent follows.
-    
+
     Parameters
     ----------
     steps : list of str, optional
         Keys of CLEANING_STEPS to apply. If None, applies all of them.
     custom_instructions : str, optional
         Extra instructions added after the selected steps.
-    
+
     Returns
     -------
     str
@@ -60,10 +67,10 @@ def build_cleaning_instructions(steps=None, custom_instructions=None):
 class LightweightDataCleaningAgent:
     """
     LLM-powered agent that generates and executes Python code to clean pandas DataFrames.
-    
+
     Uses an LLM to create data cleaning functions based on user instructions. The agent
     automatically retries with error correction if the generated code fails.
-    
+
     Parameters
     ----------
     model : LLM
@@ -78,19 +85,19 @@ class LightweightDataCleaningAgent:
         Name of the generated cleaning function.
     checkpointer : Checkpointer, optional
         LangGraph checkpointer for saving agent state.
-    
+
     Attributes
     ----------
     response : dict or None
         Stores the full response after invoke_agent() is called.
     """
-    
+
     def __init__(
-        self, 
-        model, 
-        log=False, 
-        log_path=None, 
-        file_name="data_cleaner.py", 
+        self,
+        model,
+        log=False,
+        log_path=None,
+        file_name="data_cleaner.py",
         function_name="data_cleaner",
         checkpointer: Checkpointer = None
     ):
@@ -110,11 +117,11 @@ class LightweightDataCleaningAgent:
             function_name=function_name,
             checkpointer=checkpointer
         )
-    
+
     def invoke_agent(self, data_raw: pd.DataFrame, user_instructions: str=None, max_retries:int=3, retry_count:int=0, **kwargs):
         """
         Generate and execute data cleaning code on the provided DataFrame.
-        
+
         Parameters
         ----------
         data_raw : pd.DataFrame
@@ -129,7 +136,7 @@ class LightweightDataCleaningAgent:
             Starting retry count (typically left at 0).
         **kwargs
             Additional arguments passed to the underlying graph invoke method.
-        
+
         Returns
         -------
         None
@@ -143,28 +150,28 @@ class LightweightDataCleaningAgent:
         }, **kwargs)
         self.response = response  # Store full workflow response for getter methods
         return None
-    
+
     def get_data_cleaned(self):
         """
         Retrieves the cleaned data stored after running invoke_agent.
         """
         if self.response:
             return pd.DataFrame(self.response.get("data_cleaned"))
-        
+
     def get_data_raw(self):
         """
         Retrieves the raw data.
         """
         if self.response:
             return pd.DataFrame(self.response.get("data_raw"))
-    
+
     def get_data_cleaner_function(self):
         """
         Retrieves the agent's cleaning function code.
         """
         if self.response:
             return self.response.get("data_cleaner_function")
-    
+
     def get_data_cleaner_error(self):
         """
         Retrieves the error left after the last retry, or None if the code ran.
@@ -176,19 +183,19 @@ class LightweightDataCleaningAgent:
 # Agent Factory Function
 
 def make_lightweight_data_cleaning_agent(
-    model, 
-    log=False, 
-    log_path=None, 
+    model,
+    log=False,
+    log_path=None,
     file_name="data_cleaner.py",
     function_name="data_cleaner",
     checkpointer: Checkpointer = None
 ):
     """
     Factory function that creates a compiled LangGraph workflow for data cleaning.
-    
+
     Builds a state graph with three nodes: code generation, execution, and error fixing.
     The workflow automatically retries with corrections if generated code fails.
-    
+
     Parameters
     ----------
     model : LLM
@@ -203,7 +210,7 @@ def make_lightweight_data_cleaning_agent(
         Name of the generated cleaning function.
     checkpointer : Checkpointer, optional
         LangGraph checkpointer for saving workflow state.
-    
+
     Returns
     -------
     CompiledStateGraph
@@ -214,7 +221,7 @@ def make_lightweight_data_cleaning_agent(
         if log_path is None:
             log_path = LOG_PATH
         if not os.path.exists(log_path):
-            os.makedirs(log_path)    
+            os.makedirs(log_path)
 
     # Define state schema for the workflow graph
     class GraphState(TypedDict):
@@ -228,21 +235,21 @@ def make_lightweight_data_cleaning_agent(
         max_retries: int
         retry_count: int
 
-    
+
     def create_data_cleaner_code(state: GraphState):
         """
         Generate the data cleaning code based on user instructions.
         """
         logger.info("Creating data cleaner code")
-        
+
         data_raw = state.get("data_raw")
         df = pd.DataFrame.from_dict(data_raw)
 
         dataset_summary = get_dataframe_summary(df)
-        
+
         # Resolved once and saved to state, so a retry follows the same instructions
         user_instructions = state.get("user_instructions") or build_cleaning_instructions()
-        
+
         data_cleaning_prompt = PromptTemplate(
             template="""
             You are a Data Cleaning Agent. Create a {function_name}() function to clean the data.
@@ -268,13 +275,13 @@ def make_lightweight_data_cleaning_agent(
         )
 
         data_cleaning_agent = data_cleaning_prompt | model | PythonOutputParser()
-        
+
         response = data_cleaning_agent.invoke({
             "user_instructions": user_instructions,
             "all_datasets_summary": dataset_summary,
             "function_name": function_name
         })
-        
+
         # Simple logging if enabled
         file_path = None
         if log:
@@ -282,14 +289,14 @@ def make_lightweight_data_cleaning_agent(
             with open(file_path, 'w') as f:
                 f.write(response)
             logger.info(f"Code saved to: {file_path}")
-   
+
         return {
             "user_instructions": user_instructions,
             "data_cleaner_function": response,
             "data_cleaner_function_path": file_path,
             "data_cleaner_function_name": function_name,
         }
-        
+
     def execute_data_cleaner_code(state):
         """
         Execute the generated cleaning code on the data.
@@ -302,21 +309,21 @@ def make_lightweight_data_cleaning_agent(
             code_snippet_key="data_cleaner_function",
             agent_function_name=state.get("data_cleaner_function_name")
         )
-        
+
     def fix_data_cleaner_code(state: GraphState):
         """
         Fix errors in the generated data cleaning code.
         """
         data_cleaner_prompt = """
         You are a Data Cleaning Agent. Fix the broken {function_name}() function.
-        
+
         Return Python code in ```python``` format with the corrected function definition.
         Keep the original row index and keep following the cleaning steps below.
-        
+
         Cleaning Steps:
         {user_instructions}
-        
-        Broken code: 
+
+        Broken code:
         {code_snippet}
 
         Error:
@@ -327,7 +334,7 @@ def make_lightweight_data_cleaning_agent(
             state=state,
             code_snippet_key="data_cleaner_function",
             error_key="data_cleaner_error",
-            llm=model,  
+            llm=model,
             prompt_template=data_cleaner_prompt,
             function_name=state.get("data_cleaner_function_name"),
             user_instructions=state.get("user_instructions"),
@@ -335,19 +342,19 @@ def make_lightweight_data_cleaning_agent(
 
     # Build the workflow graph
     workflow = StateGraph(GraphState)
-    
+
     # Add nodes
     workflow.add_node("create_data_cleaner_code", create_data_cleaner_code)
     workflow.add_node("execute_data_cleaner_code", execute_data_cleaner_code)
     workflow.add_node("fix_data_cleaner_code", fix_data_cleaner_code)
-    
+
     # Set entry point
     workflow.set_entry_point("create_data_cleaner_code")
-    
+
     # Add edges
     workflow.add_edge("create_data_cleaner_code", "execute_data_cleaner_code")
     workflow.add_edge("fix_data_cleaner_code", "execute_data_cleaner_code")
-    
+
     # Conditional routing: retry with fixes if error occurs and retries remain
     def should_retry(state):
         has_error = state.get("data_cleaner_error") is not None
@@ -357,7 +364,7 @@ def make_lightweight_data_cleaning_agent(
             and state["retry_count"] < state["max_retries"]
         )
         return "fix_code" if (has_error and can_retry) else "end"
-    
+
     workflow.add_conditional_edges(
         "execute_data_cleaner_code",
         should_retry,
@@ -366,8 +373,8 @@ def make_lightweight_data_cleaning_agent(
             "end": END,
         },
     )
-    
+
     # Compile the workflow
     app = workflow.compile(checkpointer=checkpointer, name=AGENT_NAME)
-    
+
     return app

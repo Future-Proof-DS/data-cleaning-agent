@@ -1,6 +1,6 @@
 # Data Cleaning Agent (Finished Version)
 
-> This is the finished version of the Week 3 project, here as a lifeline if you get stuck. It shows one good way to reach the goal, not the only one, so try it yourself first. The student-facing starter is [data-cleaning-agent](https://github.com/Future-Proof-DS/data-cleaning-agent).
+> This is the finished version of the Week 3 data cleaning agent, here as a lifeline if you get stuck. It shows one good way to reach the goal, not the only one, so try it yourself first. The student-facing starter is [data-cleaning-agent](https://github.com/Future-Proof-DS/data-cleaning-agent).
 
 An AI-powered data cleaning agent that automatically cleans messy datasets using LangChain and LangGraph. The agent uses an LLM to generate and execute Python code for common data cleaning tasks like standardizing data types, removing outliers, handling missing values, removing duplicates, and dropping low-quality columns.
 
