@@ -19,7 +19,7 @@ class PythonOutputParser(BaseOutputParser):
         return text
 
 
-def get_dataframe_summary(df: pd.DataFrame) -> str:
+def get_dataframe_summary(df: pd.DataFrame, n_sample: int = 30) -> str:
     """
     Generate a simple summary of a DataFrame for the LLM.
     
@@ -27,6 +27,8 @@ def get_dataframe_summary(df: pd.DataFrame) -> str:
     ----------
     df : pd.DataFrame
         The DataFrame to summarize.
+    n_sample : int, optional
+        Number of rows to include in the sample. Defaults to 30.
     
     Returns
     -------
@@ -41,13 +43,102 @@ def get_dataframe_summary(df: pd.DataFrame) -> str:
     summary = f"""
         Dataset Summary:
         ----------------
+        Shape: {df.shape[0]} rows x {df.shape[1]} columns
+
         Column Data Types:
         {column_types}
 
         Missing Value Percentage:
-        {missing_summary}"""
+        {missing_summary}
+
+        Sample Data (first {n_sample} rows):
+        {df.head(n_sample).to_string()}"""
 
     return summary.strip()
+
+
+def get_data_quality_report(df: pd.DataFrame) -> dict:
+    """
+    Measure the quality of a DataFrame, for showing to the user.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame to measure.
+    
+    Returns
+    -------
+    dict
+        Overall counts, plus a "columns" DataFrame with one row per column.
+    """
+    # Same IQR rule the agent is told to use
+    numeric = df.select_dtypes(include="number")
+    q1 = numeric.quantile(0.25)
+    q3 = numeric.quantile(0.75)
+    iqr = q3 - q1
+    outliers = ((numeric < q1 - 1.5 * iqr) | (numeric > q3 + 1.5 * iqr)).sum()
+    
+    columns = pd.DataFrame({
+        "Type": df.dtypes.astype(str),
+        "Missing": df.isna().sum(),
+        "Missing %": (df.isna().mean() * 100).round(1),
+        "Unique Values": df.nunique(),
+        "Outliers": outliers.reindex(df.columns).fillna(0).astype(int),
+    })
+    
+    return {
+        "rows": df.shape[0],
+        "columns": df.shape[1],
+        "missing_cells": int(df.isna().sum().sum()),
+        "duplicate_rows": int(df.duplicated().sum()),
+        "outliers": int(outliers.sum()),
+        "column_details": columns,
+    }
+
+
+def get_cleaning_changes(df_raw: pd.DataFrame, df_cleaned: pd.DataFrame) -> dict:
+    """
+    Compare the raw and cleaned data to show what the cleaning changed.
+    
+    Rows are matched on their index, which the agent is told to keep.
+    
+    Parameters
+    ----------
+    df_raw : pd.DataFrame
+        The data before cleaning.
+    df_cleaned : pd.DataFrame
+        The data after cleaning.
+    
+    Returns
+    -------
+    dict
+        The rows and columns removed, and one row per changed cell with its
+        value before and after.
+    """
+    rows = df_raw.index.intersection(df_cleaned.index)
+    columns = df_raw.columns.intersection(df_cleaned.columns)
+    before = df_raw.loc[rows, columns].astype(object)
+    after = df_cleaned.loc[rows, columns].astype(object)
+    
+    # Two missing values count as unchanged, even though NaN != NaN
+    changed = before.ne(after) & ~(before.isna() & after.isna())
+    # As text, because a column can hold mixed types once values are shown side by side
+    before_text = before.astype(str).where(before.notna(), "missing")
+    after_text = after.astype(str).where(after.notna(), "missing")
+    cells_changed = pd.DataFrame(
+        [
+            {"Row": row, "Column": column, "Before": before_text.at[row, column], "After": after_text.at[row, column]}
+            for column in columns
+            for row in changed.index[changed[column]]
+        ],
+        columns=["Row", "Column", "Before", "After"],
+    )
+    
+    return {
+        "rows_removed": df_raw.loc[~df_raw.index.isin(df_cleaned.index)],
+        "columns_removed": df_raw.columns.difference(df_cleaned.columns, sort=False).tolist(),
+        "cells_changed": cells_changed,
+    }
 
 
 def execute_agent_code(state, data_key, code_snippet_key, result_key, error_key, agent_function_name):
@@ -105,7 +196,7 @@ def execute_agent_code(state, data_key, code_snippet_key, result_key, error_key,
     return {result_key: result, error_key: agent_error}
 
 
-def fix_agent_code(state, code_snippet_key, error_key, llm, prompt_template, function_name, retry_count_key="retry_count"):
+def fix_agent_code(state, code_snippet_key, error_key, llm, prompt_template, function_name, user_instructions, retry_count_key="retry_count"):
     """
     Fix errors in the generated agent code using the LLM.
     
@@ -120,9 +211,11 @@ def fix_agent_code(state, code_snippet_key, error_key, llm, prompt_template, fun
     llm : LLM
         The language model to use for fixing the code.
     prompt_template : str
-        Template for the fix prompt (should have {code_snippet}, {error}, {function_name} placeholders).
+        Template for the fix prompt (should have {code_snippet}, {error}, {function_name}, {user_instructions} placeholders).
     function_name : str
         Name of the function being fixed.
+    user_instructions : str
+        The instructions the code was generated from, so a fix cannot drift from them.
     retry_count_key : str, optional
         Key in state for tracking retry count. Defaults to "retry_count".
     
@@ -142,6 +235,7 @@ def fix_agent_code(state, code_snippet_key, error_key, llm, prompt_template, fun
         code_snippet=code_snippet,
         error=error_message,
         function_name=function_name,
+        user_instructions=user_instructions,
     )
     
     # Get fixed code from LLM

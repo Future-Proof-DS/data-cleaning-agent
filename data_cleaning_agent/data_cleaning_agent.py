@@ -21,6 +21,41 @@ logger = logging.getLogger(__name__)
 AGENT_NAME = "lightweight_data_cleaning_agent"
 LOG_PATH = os.path.join(os.getcwd(), "logs/")
 
+# The cleaning steps the agent knows. This is the only place they are listed:
+# the default instructions and the Streamlit toggles are both built from it.
+CLEANING_STEPS = {
+    "standardize_types": "Standardize data types: convert numbers stored as text to numeric (strip currency symbols and thousands separators) and dates to datetime, leaving values that cannot be converted as missing",
+    "remove_sparse_columns": "Remove columns with more than 40% missing values",
+    "remove_outliers": "Remove rows with outliers in numeric columns, using the IQR method (outside 1.5 times the IQR), and keep rows where the value is missing",
+    "impute_missing": "Impute missing values (mean for numeric, mode for categorical)",
+    "remove_duplicates": "Remove duplicate rows",
+}
+
+
+def build_cleaning_instructions(steps=None, custom_instructions=None):
+    """
+    Build the numbered instructions the agent follows.
+    
+    Parameters
+    ----------
+    steps : list of str, optional
+        Keys of CLEANING_STEPS to apply. If None, applies all of them.
+    custom_instructions : str, optional
+        Extra instructions added after the selected steps.
+    
+    Returns
+    -------
+    str
+        The numbered instructions, or an empty string if nothing was selected.
+    """
+    instructions = [
+        description for step, description in CLEANING_STEPS.items()
+        if steps is None or step in steps
+    ]
+    if custom_instructions and custom_instructions.strip():
+        instructions.append(custom_instructions.strip())
+    return "\n".join(f"{i}. {line}" for i, line in enumerate(instructions, start=1))
+
 
 class LightweightDataCleaningAgent:
     """
@@ -85,9 +120,9 @@ class LightweightDataCleaningAgent:
         data_raw : pd.DataFrame
             Raw dataset to clean.
         user_instructions : str, optional
-            Custom cleaning instructions. If None, applies default cleaning steps:
-            removing columns with >40% missing values, imputing missing values,
-            and removing duplicates.
+            Cleaning instructions. If None, applies every step in CLEANING_STEPS.
+            If provided, the agent follows these instead of the defaults, so the
+            caller decides exactly what runs (see build_cleaning_instructions).
         max_retries : int, default=3
             Maximum number of retry attempts if generated code fails.
         retry_count : int, default=0
@@ -129,6 +164,13 @@ class LightweightDataCleaningAgent:
         """
         if self.response:
             return self.response.get("data_cleaner_function")
+    
+    def get_data_cleaner_error(self):
+        """
+        Retrieves the error left after the last retry, or None if the code ran.
+        """
+        if self.response:
+            return self.response.get("data_cleaner_error")
 
 
 # Agent Factory Function
@@ -198,17 +240,14 @@ def make_lightweight_data_cleaning_agent(
 
         dataset_summary = get_dataframe_summary(df)
         
-        # TODO: Expand this prompt with more detailed cleaning instructions
+        # Resolved once and saved to state, so a retry follows the same instructions
+        user_instructions = state.get("user_instructions") or build_cleaning_instructions()
+        
         data_cleaning_prompt = PromptTemplate(
             template="""
             You are a Data Cleaning Agent. Create a {function_name}() function to clean the data.
 
-            Basic Cleaning Steps to implement:
-            1. Remove columns with more than 40% missing values
-            2. Impute missing values (mean for numeric, mode for categorical)
-            3. Remove duplicate rows
-
-            User Instructions:
+            Cleaning Steps to implement, in this order. Apply these and nothing else:
             {user_instructions}
 
             Dataset Summary:
@@ -223,6 +262,7 @@ def make_lightweight_data_cleaning_agent(
                 return data_cleaned
 
             Important: Ensure fit_transform() outputs are flattened with .ravel() when assigning to DataFrame columns.
+            Important: Keep the original row index. Do not call reset_index(), it is used to show which rows changed.
             """,
             input_variables=["user_instructions", "all_datasets_summary", "function_name"]
         )
@@ -230,7 +270,7 @@ def make_lightweight_data_cleaning_agent(
         data_cleaning_agent = data_cleaning_prompt | model | PythonOutputParser()
         
         response = data_cleaning_agent.invoke({
-            "user_instructions": state.get("user_instructions") or "Follow the basic cleaning steps.",
+            "user_instructions": user_instructions,
             "all_datasets_summary": dataset_summary,
             "function_name": function_name
         })
@@ -244,6 +284,7 @@ def make_lightweight_data_cleaning_agent(
             logger.info(f"Code saved to: {file_path}")
    
         return {
+            "user_instructions": user_instructions,
             "data_cleaner_function": response,
             "data_cleaner_function_path": file_path,
             "data_cleaner_function_name": function_name,
@@ -270,6 +311,10 @@ def make_lightweight_data_cleaning_agent(
         You are a Data Cleaning Agent. Fix the broken {function_name}() function.
         
         Return Python code in ```python``` format with the corrected function definition.
+        Keep the original row index and keep following the cleaning steps below.
+        
+        Cleaning Steps:
+        {user_instructions}
         
         Broken code: 
         {code_snippet}
@@ -285,6 +330,7 @@ def make_lightweight_data_cleaning_agent(
             llm=model,  
             prompt_template=data_cleaner_prompt,
             function_name=state.get("data_cleaner_function_name"),
+            user_instructions=state.get("user_instructions"),
         )
 
     # Build the workflow graph
