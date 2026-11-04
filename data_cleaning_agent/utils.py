@@ -117,14 +117,17 @@ def get_cleaning_changes(df_raw: pd.DataFrame, df_cleaned: pd.DataFrame) -> dict
     """
     rows = df_raw.index.intersection(df_cleaned.index)
     columns = df_raw.columns.intersection(df_cleaned.columns)
-    before = df_raw.loc[rows, columns].astype(object)
-    after = df_cleaned.loc[rows, columns].astype(object)
+    before = df_raw.loc[rows, columns]
+    after = df_cleaned.loc[rows, columns]
     
-    # Two missing values count as unchanged, even though NaN != NaN
-    changed = before.ne(after) & ~(before.isna() & after.isna())
-    # As text, because a column can hold mixed types once values are shown side by side
+    # Compared as text and as numbers, so a value that only changed type, like
+    # "28" to 28.0, or a date parsed from text, does not count as a change
     before_text = before.astype(str).where(before.notna(), "missing")
     after_text = after.astype(str).where(after.notna(), "missing")
+    before_numbers = before.apply(pd.to_numeric, errors="coerce")
+    after_numbers = after.apply(pd.to_numeric, errors="coerce")
+    changed = before_text.ne(after_text) & before_numbers.ne(after_numbers)
+    
     cells_changed = pd.DataFrame(
         [
             {"Row": row, "Column": column, "Before": before_text.at[row, column], "After": after_text.at[row, column]}
